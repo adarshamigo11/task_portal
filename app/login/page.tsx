@@ -24,7 +24,7 @@ export default function LoginPage() {
       setError(res.message || "Login failed")
       return
     }
-    if (email === "admin@admin.com") router.push("/admin/tasks")
+    if (email === "admin@admin.com") router.push("/admin/updates")
     else router.push("/tasks")
   }
 

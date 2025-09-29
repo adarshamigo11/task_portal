@@ -15,6 +15,8 @@ export type User = {
   visitedTaskIds: string[]
 }
 
+export type TaskCategory = "Preliminary" | "Ignite Propel" | "Venture Quest" | "Comprehensive"
+
 export type Task = {
   id: string
   title: string
@@ -22,6 +24,7 @@ export type Task = {
   image: string
   points: number
   status: "draft" | "published"
+  category: TaskCategory
 }
 
 export type Submission = {
@@ -34,10 +37,18 @@ export type Submission = {
   createdAt: number
 }
 
+export type Update = {
+  id: string
+  title: string
+  details: string
+  createdAt: number
+}
+
 type AppData = {
   users: User[]
   tasks: Task[]
   submissions: Submission[]
+  updates: Update[]
 }
 
 type AuthState = {
@@ -56,6 +67,8 @@ type Ctx = {
   setVisited: (taskId: string) => void
   approveSubmission: (submissionId: string) => void
   rejectSubmission: (submissionId: string) => void
+  publishUpdate: (payload: Omit<Update, "id" | "createdAt">) => void
+  deleteUpdate: (id: string) => void
 }
 
 const AppContext = createContext<Ctx | null>(null)
@@ -102,6 +115,7 @@ const initialData: AppData = {
   users: initialUsers,
   tasks: [],
   submissions: [],
+  updates: [],
 }
 
 function readStorage(): { auth: AuthState; data: AppData } {
@@ -112,10 +126,16 @@ function readStorage(): { auth: AuthState; data: AppData } {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return { auth: { currentUserEmail: null }, data: initialData }
     const parsed = JSON.parse(raw) as { auth: AuthState; data: AppData }
-    // defensive defaults
+    // defensive defaults and migration for existing tasks without category
+    const data = parsed?.data ?? initialData
+    const migratedTasks = data.tasks.map(task => ({
+      ...task,
+      category: task.category || "Preliminary" as TaskCategory
+    }))
+    
     return {
       auth: parsed?.auth ?? { currentUserEmail: null },
-      data: parsed?.data ?? initialData,
+      data: { ...data, tasks: migratedTasks },
     }
   } catch {
     return { auth: { currentUserEmail: null }, data: initialData }
@@ -164,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       image: payload.image,
       points: payload.points,
       status: "published",
+      category: payload.category,
     }
     setState((prev) => ({ ...prev, data: { ...prev.data, tasks: [newTask, ...prev.data.tasks] } }))
   }, [])
@@ -256,6 +277,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }))
   }, [])
 
+  const publishUpdate: Ctx["publishUpdate"] = useCallback((payload) => {
+    const newUpdate: Update = {
+      id: nanoid(),
+      title: payload.title,
+      details: payload.details,
+      createdAt: Date.now(),
+    }
+    setState((prev) => ({ ...prev, data: { ...prev.data, updates: [newUpdate, ...(prev.data.updates || [])] } }))
+  }, [])
+
+  const deleteUpdate: Ctx["deleteUpdate"] = useCallback((id) => {
+    setState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        updates: (prev.data.updates || []).filter((u) => u.id !== id),
+      },
+    }))
+  }, [])
+
   const value: Ctx = {
     data,
     currentUser,
@@ -268,6 +309,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setVisited,
     approveSubmission,
     rejectSubmission,
+    publishUpdate,
+    deleteUpdate,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

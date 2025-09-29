@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { TaskCategory } from "@/components/state/auth-context"
 
 export default function AdminTasksPage() {
   const { currentUser, isAdmin, publishTask, data, deleteTask } = useApp()
@@ -15,6 +17,7 @@ export default function AdminTasksPage() {
   const [details, setDetails] = useState("")
   const [image, setImage] = useState("")
   const [points, setPoints] = useState<number>(10)
+  const [category, setCategory] = useState<TaskCategory>("Preliminary")
 
   useEffect(() => {
     if (!currentUser) router.push("/login")
@@ -30,11 +33,13 @@ export default function AdminTasksPage() {
       details: details.trim() || "No details provided.",
       image: image.trim() || "/task-image.jpg",
       points: Number(points) || 0,
+      category: category,
     })
     setTitle("")
     setDetails("")
     setImage("")
     setPoints(10)
+    setCategory("Preliminary")
   }
 
   const onDiscard = () => {
@@ -42,6 +47,7 @@ export default function AdminTasksPage() {
     setDetails("")
     setImage("")
     setPoints(10)
+    setCategory("Preliminary")
   }
 
   return (
@@ -77,6 +83,20 @@ export default function AdminTasksPage() {
               value={points}
               onChange={(e) => setPoints(Number(e.target.value))}
             />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="category">Category</Label>
+            <Select value={category} onValueChange={(value: TaskCategory) => setCategory(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Preliminary">Preliminary</SelectItem>
+                <SelectItem value="Ignite Propel">Ignite Propel</SelectItem>
+                <SelectItem value="Venture Quest">Venture Quest</SelectItem>
+                <SelectItem value="Comprehensive">Comprehensive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center gap-3">
             <Button onClick={onPublish} className="bg-primary text-primary-foreground">

@@ -19,7 +19,7 @@ export default function TaskDetailPage() {
 
   useEffect(() => {
     if (!currentUser) router.push("/login")
-    if (currentUser?.email === "admin@admin.com") router.push("/admin/tasks")
+    if (currentUser?.email === "admin@admin.com") router.push("/admin/updates")
   }, [currentUser, router])
 
   useEffect(() => {
