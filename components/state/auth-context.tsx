@@ -15,7 +15,19 @@ export type User = {
   visitedTaskIds: string[]
 }
 
-export type TaskCategory = "Preliminary" | "Ignite Propel" | "Venture Quest" | "Comprehensive"
+export type Campaign = {
+  id: string
+  name: string
+  description: string
+  createdAt: number
+}
+
+export type Category = {
+  id: string
+  name: string
+  campaignId: string
+  createdAt: number
+}
 
 export type Task = {
   id: string
@@ -24,7 +36,8 @@ export type Task = {
   image: string
   points: number
   status: "draft" | "published"
-  category: TaskCategory
+  categoryId: string
+  campaignId: string
 }
 
 export type Submission = {
@@ -46,6 +59,8 @@ export type Update = {
 
 type AppData = {
   users: User[]
+  campaigns: Campaign[]
+  categories: Category[]
   tasks: Task[]
   submissions: Submission[]
   updates: Update[]
@@ -61,7 +76,14 @@ type Ctx = {
   isAdmin: boolean
   login: (email: string, password: string) => { ok: boolean; message?: string }
   logout: () => void
+  createCampaign: (payload: Omit<Campaign, "id" | "createdAt">) => void
+  createCategory: (payload: Omit<Category, "id" | "createdAt">) => void
   publishTask: (payload: Omit<Task, "id" | "status">) => void
+  editCampaign: (id: string, payload: Omit<Campaign, "id" | "createdAt">) => void
+  editCategory: (id: string, payload: Omit<Category, "id" | "createdAt">) => void
+  editTask: (id: string, payload: Omit<Task, "id" | "status">) => void
+  deleteCampaign: (id: string) => void
+  deleteCategory: (id: string) => void
   deleteTask: (id: string) => void
   submitTask: (taskId: string, file: File) => Promise<{ ok: boolean; message?: string }>
   setVisited: (taskId: string) => void
@@ -113,6 +135,8 @@ const initialUsers: User[] = [
 
 const initialData: AppData = {
   users: initialUsers,
+  campaigns: [],
+  categories: [],
   tasks: [],
   submissions: [],
   updates: [],
@@ -126,16 +150,26 @@ function readStorage(): { auth: AuthState; data: AppData } {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return { auth: { currentUserEmail: null }, data: initialData }
     const parsed = JSON.parse(raw) as { auth: AuthState; data: AppData }
-    // defensive defaults and migration for existing tasks without category
+    // defensive defaults and migration for existing data
     const data = parsed?.data ?? initialData
-    const migratedTasks = data.tasks.map(task => ({
+    
+    // Migrate old tasks to new structure if needed
+    const migratedTasks = (data.tasks || []).map(task => ({
       ...task,
-      category: task.category || "Preliminary" as TaskCategory
+      categoryId: task.categoryId || "default-category",
+      campaignId: task.campaignId || "default-campaign"
     }))
     
     return {
       auth: parsed?.auth ?? { currentUserEmail: null },
-      data: { ...data, tasks: migratedTasks },
+      data: { 
+        ...initialData,
+        ...data,
+        campaigns: data.campaigns || [],
+        categories: data.categories || [],
+        tasks: migratedTasks,
+        updates: data.updates || []
+      },
     }
   } catch {
     return { auth: { currentUserEmail: null }, data: initialData }
@@ -176,6 +210,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, auth: { currentUserEmail: null } }))
   }, [])
 
+  const createCampaign: Ctx["createCampaign"] = useCallback((payload) => {
+    const newCampaign: Campaign = {
+      id: nanoid(),
+      name: payload.name,
+      description: payload.description,
+      createdAt: Date.now(),
+    }
+    setState((prev) => ({ ...prev, data: { ...prev.data, campaigns: [newCampaign, ...(prev.data.campaigns || [])] } }))
+  }, [])
+
+  const createCategory: Ctx["createCategory"] = useCallback((payload) => {
+    const newCategory: Category = {
+      id: nanoid(),
+      name: payload.name,
+      campaignId: payload.campaignId,
+      createdAt: Date.now(),
+    }
+    setState((prev) => ({ ...prev, data: { ...prev.data, categories: [newCategory, ...(prev.data.categories || [])] } }))
+  }, [])
+
   const publishTask: Ctx["publishTask"] = useCallback((payload) => {
     const newTask: Task = {
       id: nanoid(),
@@ -184,9 +238,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       image: payload.image,
       points: payload.points,
       status: "published",
-      category: payload.category,
+      categoryId: payload.categoryId,
+      campaignId: payload.campaignId,
     }
-    setState((prev) => ({ ...prev, data: { ...prev.data, tasks: [newTask, ...prev.data.tasks] } }))
+    setState((prev) => ({ ...prev, data: { ...prev.data, tasks: [newTask, ...(prev.data.tasks || [])] } }))
+  }, [])
+
+  const editCampaign: Ctx["editCampaign"] = useCallback((id, payload) => {
+    setState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        campaigns: (prev.data.campaigns || []).map((c) => 
+          c.id === id ? { ...c, name: payload.name, description: payload.description } : c
+        ),
+      },
+    }))
+  }, [])
+
+  const editCategory: Ctx["editCategory"] = useCallback((id, payload) => {
+    setState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        categories: (prev.data.categories || []).map((cat) => 
+          cat.id === id ? { ...cat, name: payload.name, campaignId: payload.campaignId } : cat
+        ),
+      },
+    }))
+  }, [])
+
+  const editTask: Ctx["editTask"] = useCallback((id, payload) => {
+    setState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        tasks: (prev.data.tasks || []).map((t) => 
+          t.id === id ? { 
+            ...t, 
+            title: payload.title, 
+            details: payload.details, 
+            image: payload.image, 
+            points: payload.points,
+            categoryId: payload.categoryId,
+            campaignId: payload.campaignId
+          } : t
+        ),
+      },
+    }))
+  }, [])
+
+  const deleteCampaign: Ctx["deleteCampaign"] = useCallback((id) => {
+    setState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        campaigns: (prev.data.campaigns || []).filter((c) => c.id !== id),
+        categories: (prev.data.categories || []).filter((cat) => cat.campaignId !== id),
+        tasks: (prev.data.tasks || []).filter((t) => t.campaignId !== id),
+        submissions: (prev.data.submissions || []).filter((s) => {
+          const task = prev.data.tasks.find(t => t.id === s.taskId)
+          return task && task.campaignId !== id
+        }),
+      },
+    }))
+  }, [])
+
+  const deleteCategory: Ctx["deleteCategory"] = useCallback((id) => {
+    setState((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        categories: (prev.data.categories || []).filter((cat) => cat.id !== id),
+        tasks: (prev.data.tasks || []).filter((t) => t.categoryId !== id),
+        submissions: (prev.data.submissions || []).filter((s) => {
+          const task = prev.data.tasks.find(t => t.id === s.taskId)
+          return task && task.categoryId !== id
+        }),
+      },
+    }))
   }, [])
 
   const deleteTask: Ctx["deleteTask"] = useCallback((id) => {
@@ -194,8 +324,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       data: {
         ...prev.data,
-        tasks: prev.data.tasks.filter((t) => t.id !== id),
-        submissions: prev.data.submissions.filter((s) => s.taskId !== id),
+        tasks: (prev.data.tasks || []).filter((t) => t.id !== id),
+        submissions: (prev.data.submissions || []).filter((s) => s.taskId !== id),
       },
     }))
   }, [])
@@ -303,7 +433,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAdmin: !!isAdmin,
     login,
     logout,
+    createCampaign,
+    createCategory,
     publishTask,
+    editCampaign,
+    editCategory,
+    editTask,
+    deleteCampaign,
+    deleteCategory,
     deleteTask,
     submitTask,
     setVisited,

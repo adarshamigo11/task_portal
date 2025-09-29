@@ -15,11 +15,19 @@ export default function TaskDetailPage() {
   const router = useRouter()
   const { currentUser, data, submitTask, setVisited } = useApp()
   const [file, setFile] = useState<File | null>(null)
-  const task = useMemo(() => data.tasks.find((t) => t.id === id) || null, [data.tasks, id])
+  const task = useMemo(() => (data.tasks || []).find((t) => t.id === id) || null, [data.tasks, id])
+  const campaign = useMemo(() => 
+    task ? (data.campaigns || []).find((c) => c.id === task.campaignId) || null : null, 
+    [data.campaigns, task]
+  )
+  const category = useMemo(() => 
+    task ? (data.categories || []).find((cat) => cat.id === task.categoryId) || null : null, 
+    [data.categories, task]
+  )
 
   useEffect(() => {
     if (!currentUser) router.push("/login")
-    if (currentUser?.email === "admin@admin.com") router.push("/admin/updates")
+    if (currentUser?.email === "admin@admin.com") router.push("/admin/create")
   }, [currentUser, router])
 
   useEffect(() => {
@@ -28,7 +36,7 @@ export default function TaskDetailPage() {
 
   if (!currentUser || !task || currentUser.email === "admin@admin.com") return null
 
-  const mySubs = data.submissions.filter((s) => s.userEmail === currentUser.email && s.taskId === task.id)
+  const mySubs = (data.submissions || []).filter((s) => s.userEmail === currentUser.email && s.taskId === task.id)
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,9 +49,17 @@ export default function TaskDetailPage() {
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-8 grid gap-6">
-      <Link href="/tasks" className="text-sm hover:underline text-muted-foreground">
-        ← Back to tasks
+      <Link 
+        href={campaign && category ? `/campaigns/${campaign.id}/categories/${category.id}` : "/tasks"} 
+        className="text-sm hover:underline text-muted-foreground"
+      >
+        ← Back to {category?.name || "tasks"}
       </Link>
+      {campaign && category && (
+        <div className="text-sm text-muted-foreground">
+          {campaign.name} → {category.name}
+        </div>
+      )}
       <Card className="border-primary/40 shadow-[0_0_24px_-10px] shadow-primary/40">
         <CardHeader>
           <CardTitle className="text-balance">{task.title}</CardTitle>

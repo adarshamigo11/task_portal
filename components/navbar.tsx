@@ -13,7 +13,8 @@ export function Navbar() {
   const leftLinks =
     currentUser && isAdmin
       ? [
-          { href: "/admin/tasks", label: "Tasks" },
+          { href: "/admin/create", label: "Create" },
+          { href: "/admin/manage", label: "Manage" },
           { href: "/admin/updates", label: "Updates" },
           { href: "/admin/submissions", label: "Submissions" },
         ]
